@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>体積・重量計算ツール (コンクリート塊・鉄・金属)</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #4a5568; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-radius; font-size: 16px; transition: border 0.2s; }
+        select:focus, input:focus { border-color: #3b82f6; outline: none; }
+        .dimensions { display: none; }
+        .dimensions.active { display: block; }
+        .btn { display: block; width: 100%; padding: 14px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 25px; }
+        .btn:hover { background-color: #2563eb; }
+        .result-box { margin-top: 30px; padding: 20px; background-color: #eff6ff; border-left: 6px solid #3b82f6; border-radius: 8px; display: none; }
+        .result-box h3 { margin-top: 0; color: #1e40af; }
+        .result-val { font-size: 24px; font-weight: bold; color: #1d4ed8; }
+        .hint { font-size: 13px; color: #64748b; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📦 体積・重量計算ツール</h2>
+    
+    <div class="form-group">
+        <label for="material">1. 材質を選択</label>
+        <select id="material" onchange="updateDensity()">
+            <option value="2.35" selected>コンクリート塊（無筋: 約2.35 t/m³）</option>
+            <option value="2.45">鉄筋コンクリート（有筋: 約2.45 t/m³）</option>
+            <option value="7.85">鉄 / 鋼材（約7.85 t/m³）</option>
+            <option value="2.70">アルミニウム（約2.70 t/m³）</option>
+            <option value="8.92">銅（約8.92 t/m³）</option>
+            <option value="1.40">砕石 / 砂利（約1.40 t/m³）</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="density">比重 / 密度 (t/m³)</label>
+        <input type="number" id="density" value="2.35" step="0.01">
+        <div class="hint">※必要に応じて数値を手動で微調整できます。</div>
+    </div>
+
+    <div class="form-group">
+        <label for="shape">2. 形状を選択</label>
+        <select id="shape" onchange="toggleShapeInputs()">
+            <option value="box" selected>直方体・立方体 (板 / ブロック)</option>
+            <option value="cylinder">円柱 (丸棒 / パイプ・穴なし)</option>
+            <option value="volume">体積(m³)を直接入力</option>
+        </select>
+    </div>
+
+    <!-- 直方体の入力 -->
+    <div id="shape-box" class="dimensions active">
+        <div class="form-group">
+            <label for="box-w">幅 / 長さ (mm)</label>
+            <input type="number" id="box-w" placeholder="例: 1000">
+        </div>
+        <div class="form-group">
+            <label for="box-d">奥行 / 横幅 (mm)</label>
+            <input type="number" id="box-d" placeholder="例: 500">
+        </div>
+        <div class="form-group">
+            <label for="box-h">厚み / 高さ (mm)</label>
+            <input type="number" id="box-h" placeholder="例: 100">
+        </div>
+    </div>
+
+    <!-- 円柱の入力 -->
+    <div id="shape-cylinder" class="dimensions">
+        <div class="form-group">
+            <label for="cyl-d">直径 (mm)</label>
+            <input type="number" id="cyl-d" placeholder="例: 200">
+        </div>
+        <div class="form-group">
+            <label for="cyl-h">長さ / 高さ (mm)</label>
+            <input type="number" id="cyl-h" placeholder="例: 1000">
+        </div>
+    </div>
+
+    <!-- 直接体積入力 -->
+    <div id="shape-volume" class="dimensions">
+        <div class="form-group">
+            <label for="vol-m3">体積 (立米: m³)</label>
+            <input type="number" id="vol-m3" placeholder="例: 1.5" step="0.001">
+        </div>
+    </div>
+
+    <button class="btn" onclick="calculateWeight()">重量を計算する</button>
+
+    <div id="result" class="result-box">
+        <h3>計算結果</h3>
+        <p>算出された体積: <span id="res-vol" style="font-weight:bold;">0</span> m³</p>
+        <p>推定重量:</p>
+        <div class="result-val"><span id="res-kg">0</span> kg</div>
+        <div id="res-ton" style="font-size: 16px; margin-top: 5px; color: #4b5563;">(約 0 t)</div>
+    </div>
+</div>
+
+<script>
+function updateDensity() {
+    const materialSelect = document.getElementById('material');
+    document.getElementById('density').value = materialSelect.value;
+}
+
+function toggleShapeInputs() {
+    const shape = document.getElementById('shape').value;
+    document.querySelectorAll('.dimensions').forEach(el => el.classList.remove('active'));
+    document.getElementById('shape-' + shape).classList.add('active');
+}
+
+function calculateWeight() {
+    const density = parseFloat(document.getElementById('density').value);
+    const shape = document.getElementById('shape').value;
+    let volumeM3 = 0;
+
+    if (isNaN(density) || density <= 0) {
+        alert('正しい比重を入力してください。');
+        return;
+    }
+
+    if (shape === 'box') {
+        const w = parseFloat(document.getElementById('box-w').value) / 1000; // mm -> m
+        const d = parseFloat(document.getElementById('box-d').value) / 1000;
+        const h = parseFloat(document.getElementById('box-h').value) / 1000;
+        if (isNaN(w) || isNaN(d) || isNaN(h)) { alert('すべての寸法を入力してください。'); return; }
+        volumeM3 = w * d * h;
+    } else if (shape === 'cylinder') {
+        const dia = parseFloat(document.getElementById('cyl-d').value) / 1000;
+        const h = parseFloat(document.getElementById('cyl-h').value) / 1000;
+        if (isNaN(dia) || isNaN(h)) { alert('すべての寸法を入力してください。'); return; }
+        const radius = dia / 2;
+        volumeM3 = Math.PI * Math.pow(radius, 2) * h;
+    } else if (shape === 'volume') {
+        volumeM3 = parseFloat(document.getElementById('vol-m3').value);
+        if (isNaN(volumeM3)) { alert('体積を入力してください。'); return; }
+    }
+
+    // 重量(t) = 体積(m3) * 比重(t/m3)
+    const weightTon = volumeM3 * density;
+    const weightKg = weightTon * 1000;
+
+    document.getElementById('res-vol').innerText = volumeM3.toFixed(4);
+    document.getElementById('res-kg').innerText = weightKg.toLocaleString(undefined, {maximumFractionDigits: 2});
+    document.getElementById('res-ton').innerText = `(約 ${weightTon.toFixed(3)} t)`;
+    document.getElementById('result').style.display = 'block';
+}
+</script>
+
+</body>
+</html>
